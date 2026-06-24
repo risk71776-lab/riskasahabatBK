@@ -1,0 +1,1252 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Heart, Smile, Frown, ShieldAlert, Sparkles, MessageCircle, Calendar, BookOpen, 
+  User, Send, Plus, Trash2, Award, Zap, Compass, Star, Map, FileText, Music, 
+  Volume2, Play, Pause, RefreshCw, ChevronRight, HelpCircle, CheckCircle2, Lock, EyeOff, AlertTriangle
+} from 'lucide-react';
+
+interface StudentDashboardProps {
+  studentName: string;
+  studentClass: string;
+  counselorInfo: {
+    name: string;
+    phone: string;
+    email: string;
+  };
+  onTriggerNotification: (type: string, message: string) => void;
+}
+
+export default function StudentDashboard({ 
+  studentName, 
+  studentClass, 
+  counselorInfo,
+  onTriggerNotification 
+}: StudentDashboardProps) {
+  const [activeSubTab, setActiveSubTab] = useState<string>('beranda');
+
+  // Local storage based state persistence
+  const [moodLogs, setMoodLogs] = useState<any[]>(() => {
+    const saved = localStorage.getItem('sahabatbk_moods');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [journals, setJournals] = useState<any[]>(() => {
+    const saved = localStorage.getItem('sahabatbk_journals');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [appointments, setAppointments] = useState<any[]>(() => {
+    const saved = localStorage.getItem('sahabatbk_appointments');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [complaints, setComplaints] = useState<any[]>(() => {
+    const saved = localStorage.getItem('sahabatbk_complaints');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [targets, setTargets] = useState<any[]>(() => {
+    const saved = localStorage.getItem('sahabatbk_targets');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [portfolio, setPortfolio] = useState<any[]>(() => {
+    const saved = localStorage.getItem('sahabatbk_portfolio');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Quiz States
+  const [activeQuiz, setActiveQuiz] = useState<string | null>(null);
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
+  const [quizResult, setQuizResult] = useState<string | null>(null);
+
+  // Chat States
+  const [chatMessages, setChatMessages] = useState<any[]>([
+    { sender: 'assistant', text: `Halo ${studentName}! Aku adalah Kak SahabatAI, asisten konseling virtualmu. Di sini kamu bisa mencurahkan isi hati secara rahasia. Apa yang membuatmu kurang nyaman hari ini?` }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+
+  // Curhat states
+  const [curhatCategory, setCurhatCategory] = useState('Pribadi');
+  const [curhatText, setCurhatText] = useState('');
+  const [curhatIsSecret, setCurhatIsSecret] = useState(true);
+  const [curhatSuccess, setCurhatSuccess] = useState(false);
+
+  // Relaxation Room States
+  const [isBreathing, setIsBreathing] = useState(false);
+  const [breathingPhase, setBreathingPhase] = useState<'In' | 'Hold' | 'Out'>('In');
+  const [breathingSeconds, setBreathingSeconds] = useState(4);
+  const [audioStream, setAudioStream] = useState<string | null>(null);
+
+  // Gamification Badges
+  const badges = [
+    { id: 'b1', name: 'Siswa Disiplin', desc: 'Melakukan login dan mood check-in selama 3 hari berturut-turut', icon: '🏆', earned: true },
+    { id: 'b2', name: 'Percaya Diri', desc: 'Menyelesaikan tes psikologi kematangan karir', icon: '🚀', earned: true },
+    { id: 'b3', name: 'Peduli Teman', desc: 'Berpartisipasi memberikan tanggapan positif di forum BK', icon: '🤝', earned: false },
+    { id: 'b4', name: 'Siswa Inspiratif', desc: 'Membuat peta cita-cita & portofolio digital yang lengkap', icon: '🌟', earned: false }
+  ];
+
+  // Sync to localstorage
+  useEffect(() => {
+    localStorage.setItem('sahabatbk_moods', JSON.stringify(moodLogs));
+  }, [moodLogs]);
+
+  useEffect(() => {
+    localStorage.setItem('sahabatbk_journals', JSON.stringify(journals));
+  }, [journals]);
+
+  useEffect(() => {
+    localStorage.setItem('sahabatbk_appointments', JSON.stringify(appointments));
+  }, [appointments]);
+
+  useEffect(() => {
+    localStorage.setItem('sahabatbk_complaints', JSON.stringify(complaints));
+  }, [complaints]);
+
+  useEffect(() => {
+    localStorage.setItem('sahabatbk_targets', JSON.stringify(targets));
+  }, [targets]);
+
+  useEffect(() => {
+    localStorage.setItem('sahabatbk_portfolio', JSON.stringify(portfolio));
+  }, [portfolio]);
+
+  // Breathing Guide Loop
+  useEffect(() => {
+    let timer: any;
+    if (isBreathing) {
+      timer = setInterval(() => {
+        setBreathingSeconds((prev) => {
+          if (prev <= 1) {
+            if (breathingPhase === 'In') {
+              setBreathingPhase('Hold');
+              return 7;
+            } else if (breathingPhase === 'Hold') {
+              setBreathingPhase('Out');
+              return 8;
+            } else {
+              setBreathingPhase('In');
+              return 4;
+            }
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      setBreathingSeconds(4);
+      setBreathingPhase('In');
+    }
+    return () => clearInterval(timer);
+  }, [isBreathing, breathingPhase]);
+
+  // Handle Mood check-in
+  const handleMoodCheck = (mood: string, score: number) => {
+    const today = new Date().toISOString().split('T')[0];
+    const existing = moodLogs.find(m => m.date === today);
+    if (existing) {
+      setMoodLogs(moodLogs.map(m => m.date === today ? { ...m, mood, score } : m));
+    } else {
+      setMoodLogs([{ date: today, mood, score, note: 'Melakukan check-in emosi harian.' }, ...moodLogs]);
+    }
+    onTriggerNotification('Mood Check-In', `${studentName} melaporkan mood hari ini: ${mood}`);
+    alert(`Terima kasih! Kami mencatat bahwa suasana hatimu hari ini: ${mood}. Guru BK dapat membantu memantau jika kamu merasa tertekan.`);
+  };
+
+  // Panic Button Event
+  const triggerPanicButton = () => {
+    const confirmPanic = window.confirm("Apakah kamu membutuhkan bantuan segera? Menekan tombol ini akan mengirimkan alarm DARURAT ke handphone Riska (Guru BK).");
+    if (confirmPanic) {
+      onTriggerNotification('Emergency Alert 🚨', `${studentName} membutuhkan bantuan darurat segera! Hubungi siswa segera!`);
+      alert("🚨 Tanda Bahaya Terkirim! Riska telah diberitahu. Sementara menunggu, cobalah untuk mengatur napasmu secara perlahan di Ruang Relaksasi atau hubungi Riska via nomor WA: 082291162554.");
+      setActiveSubTab('relaksasi');
+    }
+  };
+
+  // Submit Curhat
+  const handleSubmitCurhat = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!curhatText.trim()) return;
+
+    // Simulate sending curhat
+    onTriggerNotification('Curhat Baru', `${studentName} mengirimkan curhat bertema ${curhatCategory} (${curhatIsSecret ? 'Rahasia/Anonim' : 'Terbuka'})`);
+    setCurhatSuccess(true);
+    setCurhatText('');
+    setTimeout(() => {
+      setCurhatSuccess(false);
+    }, 4000);
+  };
+
+  // Create Appointment booking
+  const [bookDate, setBookDate] = useState('');
+  const [bookTime, setBookTime] = useState('08:00 WIB');
+  const [bookCategory, setBookCategory] = useState('Pribadi');
+  const [bookType, setBookType] = useState('Face-to-Face');
+
+  const handleBookSession = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bookDate) return;
+
+    const newApp = {
+      id: Math.random().toString(),
+      date: bookDate,
+      time: bookTime,
+      category: bookCategory,
+      status: 'Pending',
+      type: bookType
+    };
+
+    setAppointments([newApp, ...appointments]);
+    onTriggerNotification('Booking Konseling', `${studentName} menjadwalkan konseling ${bookType} pada ${bookDate} pkl ${bookTime}`);
+    alert("Jadwal janji temu berhasil diajukan! Menunggu konfirmasi dari Riska.");
+    setBookDate('');
+  };
+
+  // Jurnal states
+  const [jurnalTitle, setJurnalTitle] = useState('');
+  const [jurnalText, setJurnalText] = useState('');
+  const [jurnalMood, setJurnalMood] = useState('Calm');
+
+  const handleAddJournal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!jurnalTitle || !jurnalText) return;
+
+    const newJ = {
+      id: Math.random().toString(),
+      date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      title: jurnalTitle,
+      text: jurnalText,
+      mood: jurnalMood
+    };
+
+    setJournals([newJ, ...journals]);
+    setJurnalTitle('');
+    setJurnalText('');
+    alert("Catatan jurnal berhasil disimpan secara aman di gawai pribadimu!");
+  };
+
+  // Anonymous report complaint submit
+  const [complaintCategory, setComplaintCategory] = useState('Perundungan');
+  const [complaintDescription, setComplaintDescription] = useState('');
+  const [complaintWitness, setComplaintWitness] = useState('');
+
+  const handleComplaintSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!complaintDescription) return;
+
+    const newC = {
+      id: Math.random().toString(),
+      date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      category: complaintCategory,
+      description: complaintDescription,
+      witness: complaintWitness,
+      status: 'Received',
+      studentName: studentName // Attach student name so only the counselor can see who submitted
+    };
+
+    setComplaints([newC, ...complaints]);
+    onTriggerNotification('Aspirasi/Pengaduan ⚖️', `Aduan baru masuk dari ${studentName} mengenai ${complaintCategory}: "${complaintDescription.substring(0, 50)}..."`);
+    alert("Laporan pengaduan berhasil dienkripsi dan dikirim ke Guru BK secara aman demi keselamatan Anda.");
+    setComplaintDescription('');
+    setComplaintWitness('');
+  };
+
+  // Simulated AI Chat Message Send
+  const handleSendChat = () => {
+    if (!chatInput.trim()) return;
+
+    const userMsg = { sender: 'user', text: chatInput };
+    setChatMessages(prev => [...prev, userMsg]);
+    const text = chatInput.toLowerCase();
+    setChatInput('');
+
+    // Pre-calculated motivational/counseling answers
+    setTimeout(() => {
+      let botReply = '';
+      if (text.includes('stres') || text.includes('stress')) {
+        botReply = "Stres adalah hal yang wajar dirasakan saat banyak tekanan, Ahmad. Cobalah teknik 4-7-8 breathing di Ruang Relaksasi untuk menenangkan saraf amigdalamu, lalu urutkan tugasmu berdasarkan prioritas. Guru BK kami, Riska, siap membantu mendengarkan.";
+      } else if (text.includes('bully') || text.includes('rundung')) {
+        botReply = "🚨 Cyberbullying/Perundungan adalah pelanggaran serius. Kamu aman di sini. Tolong kirim pengaduan anonim di Kotak Pengaduan atau laporkan langsung ke Riska. Kami akan melindungimu sepenuhnya.";
+      } else if (text.includes('cemas') || text.includes('panik') || text.includes('takut')) {
+        botReply = "Saat cemas melanda, ingatkan dirimu bahwa kamu aman pada saat ini. Tarik napas dari hidung perlahan, embuskan lewat mulut. Jangan sungkan menekan tombol PANIC BUTTON jika membutuhkan kehadiran guru BK saat ini.";
+      } else if (text.includes('belajar') || text.includes('nilai')) {
+        botReply = "Gaya belajar tiap orang berbeda. Di menu Tes Psikologi, kamu bisa mencoba Tes Gaya Belajar untuk melihat apakah kamu tipe Visual, Auditori, atau Kinestetik agar belajarmu lebih efisien.";
+      } else {
+        botReply = "Cerita yang luar biasa. Ketahuilah bahwa setiap tantangan adalah bagian dari proses belajarmu untuk bertumbuh. Jika kamu ingin bertatap muka langsung, silakan buat janji temu melalui menu 'Booking Konseling' ya.";
+      }
+      setChatMessages(prev => [...prev, { sender: 'assistant', text: botReply }]);
+    }, 1000);
+  };
+
+  // Interactive psychological quizzes database
+  const quizzes = {
+    stres: {
+      title: "Tes Tingkat Stres Belajar",
+      questions: [
+        "Apakah kamu sering merasa sakit kepala/lambung saat memikirkan tugas sekolah?",
+        "Apakah kamu merasa jam tidur malammu terganggu karena cemas soal masa depan?",
+        "Apakah kamu merasa sulit berkonsentrasi saat guru menjelaskan materi?",
+        "Apakah kamu merasa terbebani dengan harapan yang ditaruh orang tua kepadamu?",
+        "Apakah kamu merasa kehilangan minat untuk bersenang-senang dengan teman?"
+      ],
+      options: ["Hampir Tidak Pernah", "Kadang-Kadang", "Sangat Sering"],
+      evaluate: (answers: Record<number, number>) => {
+        const sum = Object.values(answers).reduce((a, b) => a + b, 0);
+        if (sum <= 3) return "Rendah (Suasana mentalmu cukup rileks dan terkendali. Pertahankan!)";
+        if (sum <= 7) return "Sedang (Kamu mengalami stres belajar moderat. Cobalah menyusun manajemen waktu yang baik dan sisihkan waktu relaksasi.)";
+        return "Tinggi (Stres belajarmu berada pada tingkat tinggi. Sangat disarankan untuk berkonsultasi santai dengan Riska di ruang BK untuk bimbingan koping stres.)";
+      }
+    },
+    gayaBelajar: {
+      title: "Tes Gaya Belajar Dominan",
+      questions: [
+        "Bagaimana kamu lebih mudah menghafal pelajaran?",
+        "Saat membaca buku, apa yang paling menarik perhatianmu?",
+        "Jika harus belajar merakit sesuatu, apa yang kamu lakukan?",
+        "Saat mendengarkan guru mengajar di kelas, apa yang kamu lakukan?",
+        "Apa kendalamu saat mencoba berkonsentrasi belajar?"
+      ],
+      options: [
+        "Melihat gambar, bagan, atau tulisan berwarna (Visual)",
+        "Mendengarkan penjelasan lisan atau merekam suara (Auditori)",
+        "Mempraktikkan langsung, menulis ulang, atau berjalan (Kinestetik)"
+      ],
+      evaluate: (answers: Record<number, number>) => {
+        const counts = [0, 0, 0];
+        Object.values(answers).forEach(val => counts[val]++);
+        const maxIdx = counts.indexOf(Math.max(...counts));
+        if (maxIdx === 0) return "Visual (Kamu sangat sensitif terhadap stimulus visual. Gunakan spidol warna, mind map, dan video grafis dalam belajarmu!)";
+        if (maxIdx === 1) return "Auditori (Kamu belajar paling efektif lewat pendengaran. Bacalah teks secara bersuara atau diskusikan pelajaran secara lisan!)";
+        return "Kinestetik (Kamu lebih cepat paham jika mempraktikkan langsung, membuat simulasi, atau mencoret-coret kertas saat belajar!)";
+      }
+    }
+  };
+
+  const handleStartQuiz = (quizId: string) => {
+    setActiveQuiz(quizId);
+    setQuizAnswers({});
+    setQuizResult(null);
+  };
+
+  const handleAnswerSelect = (qIdx: number, optIdx: number) => {
+    setQuizAnswers({ ...quizAnswers, [qIdx]: optIdx });
+  };
+
+  const handleSubmitQuiz = (quizId: string) => {
+    const quiz = quizzes[quizId as keyof typeof quizzes];
+    if (Object.keys(quizAnswers).length < quiz.questions.length) {
+      alert("Harap jawab semua pertanyaan terlebih dahulu.");
+      return;
+    }
+    const resultText = quiz.evaluate(quizAnswers);
+    setQuizResult(resultText);
+    
+    // Save test result for teacher view
+    const testLogs = JSON.parse(localStorage.getItem('sahabatbk_testresults') || '[]');
+    testLogs.unshift({
+      student: studentName,
+      class: studentClass,
+      testName: quiz.title,
+      result: resultText,
+      date: new Date().toLocaleDateString('id-ID')
+    });
+    localStorage.setItem('sahabatbk_testresults', JSON.stringify(testLogs));
+    onTriggerNotification('Asesmen Tes Selesai', `${studentName} menyelesaikan ${quiz.title}`);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Role Indicator Banner */}
+      <div className="bg-gradient-to-r from-sky-50 to-emerald-50 border border-sky-100 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md">PORTAL SISWA SAHABATBK</span>
+          <h2 className="font-serif italic text-2xl sm:text-3xl text-slate-800 mt-2">Selamat Datang, {studentName}! 👋</h2>
+          <p className="text-xs text-slate-500 mt-1">Kelas: {studentClass} | Bimbingan Belajar, Pribadi, Sosial, dan Karir Terpadu.</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={triggerPanicButton}
+            className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-extrabold text-xs rounded-2xl flex items-center gap-1.5 cursor-pointer shadow-lg shadow-rose-100 animate-pulse"
+          >
+            <ShieldAlert className="h-4 w-4" />
+            <span>Panic Button 🚨</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Navigation Sidebar */}
+        <div className="lg:col-span-1 space-y-2">
+          {[
+            { id: 'beranda', label: 'Beranda & Mood', icon: Compass },
+            { id: 'curhat', label: 'Curhat Online', icon: MessageCircle },
+            { id: 'booking', label: 'Booking Konseling', icon: Calendar },
+            { id: 'asisten', label: 'Asisten Virtual AI', icon: Sparkles },
+            { id: 'jurnal', label: 'Jurnal Perasaan', icon: FileText },
+            { id: 'tes', label: 'Tes Psikologi BK', icon: HelpCircle },
+            { id: 'portfolio', label: 'Target & Cita-Cita', icon: Map },
+            { id: 'materi', label: 'Perpustakaan BK', icon: BookOpen },
+            { id: 'pengaduan', label: 'Kotak Pengaduan Anonim', icon: AlertTriangle },
+            { id: 'relaksasi', label: 'Ruang Relaksasi', icon: Music }
+          ].map(sub => {
+            const Icon = sub.icon;
+            const isSel = activeSubTab === sub.id;
+            return (
+              <button
+                key={sub.id}
+                onClick={() => setActiveSubTab(sub.id)}
+                className={`w-full px-4 py-3 text-xs font-bold rounded-2xl flex items-center space-x-3 cursor-pointer transition-all ${
+                  isSel 
+                    ? 'bg-sky-500 text-white shadow-md shadow-sky-100' 
+                    : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-100'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span>{sub.label}</span>
+              </button>
+            );
+          })}
+
+          {/* Counselor Direct Contact Card */}
+          <div className="bg-white border border-slate-100 rounded-3xl p-4 mt-4 space-y-3">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Konselor Sekolah Anda:</p>
+            <div className="flex items-center space-x-3">
+              <div className="h-10 w-10 bg-emerald-50 rounded-full flex items-center justify-center text-lg">👩‍🏫</div>
+              <div>
+                <p className="text-xs font-extrabold text-slate-800 leading-none">{counselorInfo.name}</p>
+                <p className="text-[10px] text-emerald-600 font-bold mt-1">Guru BK Utama</p>
+              </div>
+            </div>
+            <div className="text-[10px] space-y-1 text-slate-500 pt-2 border-t border-slate-50">
+              <p>📞 WA: {counselorInfo.phone}</p>
+              <p>📧 Email: {counselorInfo.email}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Content Panel Area */}
+        <div className="lg:col-span-3">
+          <AnimatePresence mode="wait">
+            {activeSubTab === 'beranda' && (
+              <motion.div
+                key="beranda"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="space-y-6"
+              >
+                {/* Mood Check-In Widget */}
+                <div className="bg-white border border-slate-100 rounded-3xl p-6 space-y-4">
+                  <h3 className="font-serif italic text-lg text-slate-800 font-bold flex items-center gap-2">
+                    <Smile className="h-5 w-5 text-emerald-500" /> Bagaimana perasaanmu hari ini?
+                  </h3>
+                  <p className="text-xs text-slate-500">Pilih salah satu ikon emosi di bawah ini untuk mencatat log mood harianmu yang terpantau oleh Guru BK.</p>
+                  
+                  <div className="grid grid-cols-5 gap-3">
+                    {[
+                      { label: 'Happy', emoji: '😊', score: 5, color: 'bg-emerald-50 border-emerald-200 text-emerald-600' },
+                      { label: 'Calm', emoji: '😌', score: 4, color: 'bg-sky-50 border-sky-200 text-sky-600' },
+                      { label: 'Anxious', emoji: '😰', score: 3, color: 'bg-yellow-50 border-yellow-200 text-yellow-600' },
+                      { label: 'Sad', emoji: '😢', score: 2, color: 'bg-blue-50 border-blue-200 text-blue-600' },
+                      { label: 'Angry', emoji: '😡', score: 1, color: 'bg-red-50 border-red-200 text-red-600' }
+                    ].map(item => (
+                      <button
+                        key={item.label}
+                        onClick={() => handleMoodCheck(item.label, item.score)}
+                        className={`p-4 rounded-2xl border text-center transition-all cursor-pointer hover:scale-105 active:scale-95 ${item.color}`}
+                      >
+                        <span className="text-2xl block">{item.emoji}</span>
+                        <span className="text-[10px] font-bold block mt-1">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Badges Cabinet & Goals Panel */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Badge Cabinet */}
+                  <div className="bg-white border border-slate-100 rounded-3xl p-6 space-y-4">
+                    <h3 className="font-serif italic text-base text-slate-800 font-bold flex items-center gap-2">
+                      <Award className="h-5 w-5 text-yellow-500" /> Kabinet Lencana & Badge BK
+                    </h3>
+                    <p className="text-xs text-slate-500">Gamifikasi pencapaian karakter positif sekolah.</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {badges.map(b => (
+                        <div 
+                          key={b.id} 
+                          className={`p-3 rounded-2xl border text-center space-y-1 relative ${
+                            b.earned ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200' : 'bg-slate-50 border-slate-100 opacity-60'
+                          }`}
+                        >
+                          <span className="text-2xl block">{b.icon}</span>
+                          <p className="text-xs font-black text-slate-800 leading-none">{b.name}</p>
+                          <p className="text-[8px] text-slate-400 font-medium leading-tight mt-1">{b.desc}</p>
+                          {b.earned && (
+                            <span className="absolute top-1 right-1 px-1 bg-amber-500 text-white rounded-md text-[7px] font-bold">ACTIVE</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Motivational Quote & Quick Tip */}
+                  <div className="bg-gradient-to-br from-sky-500 to-indigo-600 rounded-3xl p-6 text-white space-y-4 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest bg-white/25 px-2 py-0.5 rounded-md">Kutipan Hari Ini</span>
+                      <p className="font-serif italic text-base leading-relaxed">
+                        "Setiap kemajuan besar selalu dimulai dari keputusan sederhana untuk berani terus melangkah dan belajar mencintai dirimu sendiri apa adanya."
+                      </p>
+                    </div>
+                    <div className="border-t border-white/20 pt-4 flex justify-between items-center text-xs">
+                      <span className="font-black">Riska</span>
+                      <button 
+                        onClick={() => setActiveSubTab('relaksasi')}
+                        className="bg-white text-indigo-600 font-black px-3 py-1 rounded-xl cursor-pointer"
+                      >
+                        Relaksasi Sekarang
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mood Charts history */}
+                <div className="bg-white border border-slate-100 rounded-3xl p-6 space-y-4">
+                  <h3 className="font-serif italic text-base text-slate-800 font-bold">Grafik Riwayat Mood</h3>
+                  <div className="h-36 flex items-end gap-4 border-b border-slate-100 pb-2">
+                    {moodLogs.slice(0, 7).reverse().map((log, i) => (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-400">{log.mood === 'Happy' ? '😊' : log.mood === 'Calm' ? '😌' : log.mood === 'Anxious' ? '😰' : log.mood === 'Sad' ? '😢' : '😡'}</span>
+                        <div 
+                          className={`w-full rounded-t-xl transition-all duration-300 ${
+                            log.score === 5 ? 'bg-emerald-400' : log.score === 4 ? 'bg-sky-400' : log.score === 3 ? 'bg-yellow-400' : 'bg-blue-400'
+                          }`}
+                          style={{ height: `${log.score * 20}px` }}
+                        />
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-tight">{log.date.split('-')[2]}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-400 text-center">Menampilkan suasana emosimu dalam 7 hari terakhir bimbingan.</p>
+                </div>
+              </motion.div>
+            )}
+
+            {activeSubTab === 'curhat' && (
+              <motion.div
+                key="curhat"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white border border-slate-100 rounded-3xl p-6 space-y-6"
+              >
+                <div>
+                  <h3 className="font-serif italic text-2xl text-slate-900 font-bold">💌 Ruang Curhat Online</h3>
+                  <p className="text-xs text-slate-500 mt-1">Tuangkan keraguan, rasa cemas, masalah pertemanan atau belajar secara tertutup dan aman bersama Guru BK.</p>
+                </div>
+
+                {curhatSuccess ? (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center space-y-2">
+                    <p className="text-xs font-bold text-emerald-800">🎉 Curhat berhasil terkirim secara aman!</p>
+                    <p className="text-[10px] text-slate-500">Guru BK (Riska) akan meninjau curhatmu dan segera menghubungimu lewat chat atau menjadwalkan konseling tatap muka.</p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubmitCurhat} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Kategori Masalah</label>
+                        <select
+                          value={curhatCategory}
+                          onChange={(e) => setCurhatCategory(e.target.value)}
+                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                        >
+                          <option value="Pribadi">Masalah Pribadi</option>
+                          <option value="Belajar">Masalah Belajar & Nilai</option>
+                          <option value="Sosial">Hubungan Sosial & Pertemanan</option>
+                          <option value="Keluarga">Dinamika Keluarga</option>
+                          <option value="Karir">Perencanaan Karir / Jurusan</option>
+                          <option value="Bullying">Perundungan / Bullying</option>
+                          <option value="Kecemasan">Kecemasan / Stress</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Sifat Kerahasiaan</label>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setCurhatIsSecret(true)}
+                            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                              curhatIsSecret ? 'bg-sky-500 text-white border-sky-400' : 'bg-slate-50 border-slate-200 text-slate-600'
+                            }`}
+                          >
+                            🔒 Sangat Rahasia (Hanya Konselor)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCurhatIsSecret(false)}
+                            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                              !curhatIsSecret ? 'bg-emerald-500 text-white border-emerald-400' : 'bg-slate-50 border-slate-200 text-slate-600'
+                            }`}
+                          >
+                            🔓 Terbuka (Bisa di diskusikan di forum)
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Tuliskan Kronologi & Isi Hati Anda</label>
+                      <textarea
+                        value={curhatText}
+                        onChange={(e) => setCurhatText(e.target.value)}
+                        placeholder="Mulai ceritakan permasalahan atau keraguan yang sedang kamu rasakan saat ini secara jujur..."
+                        rows={6}
+                        required
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 outline-none resize-none leading-relaxed"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-3 bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-xs rounded-2xl transition-all cursor-pointer shadow-lg shadow-sky-100 flex items-center justify-center gap-1.5"
+                    >
+                      <Send className="h-4 w-4" />
+                      <span>Kirim Curahan Hati</span>
+                    </button>
+                  </form>
+                )}
+              </motion.div>
+            )}
+
+            {activeSubTab === 'booking' && (
+              <motion.div
+                key="booking"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="grid grid-cols-1 md:grid-cols-3 gap-6"
+              >
+                {/* Book form */}
+                <div className="md:col-span-1 bg-white border border-slate-100 rounded-3xl p-5 space-y-4 text-left h-fit">
+                  <h3 className="font-serif italic text-lg text-slate-900 font-bold">Booking Jadwal BK</h3>
+                  <form onSubmit={handleBookSession} className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Pilih Tanggal</label>
+                      <input
+                        type="date"
+                        value={bookDate}
+                        onChange={(e) => setBookDate(e.target.value)}
+                        required
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Pilih Jam</label>
+                      <select
+                        value={bookTime}
+                        onChange={(e) => setBookTime(e.target.value)}
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none"
+                      >
+                        <option value="08:00 WIB">08:00 WIB</option>
+                        <option value="09:00 WIB">09:00 WIB</option>
+                        <option value="10:00 WIB">10:00 WIB</option>
+                        <option value="11:00 WIB">11:00 WIB</option>
+                        <option value="13:30 WIB">13:30 WIB</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Topik Konsultasi</label>
+                      <select
+                        value={bookCategory}
+                        onChange={(e) => setBookCategory(e.target.value)}
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none"
+                      >
+                        <option value="Pribadi">Masalah Pribadi</option>
+                        <option value="Akademik">Bimbingan Belajar / Akademik</option>
+                        <option value="Karir & Minat">Perencanaan Karir & Jurusan</option>
+                        <option value="Sosial">Konflik Pertemanan</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Metode Pertemuan</label>
+                      <select
+                        value={bookType}
+                        onChange={(e) => setBookType(e.target.value)}
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none"
+                      >
+                        <option value="Face-to-Face">Tatap Muka Langsung (Ruang BK)</option>
+                        <option value="Virtual">Konseling Virtual Chat/Video Call</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs rounded-xl transition-all cursor-pointer shadow-xs"
+                    >
+                      Ajukan Janji Temu
+                    </button>
+                  </form>
+                </div>
+
+                {/* Bookings List */}
+                <div className="md:col-span-2 bg-white border border-slate-100 rounded-3xl p-6 space-y-4">
+                  <h3 className="font-serif italic text-lg text-slate-900 font-bold">Riwayat Pengajuan & Jadwal BK Anda</h3>
+                  <div className="space-y-3">
+                    {appointments.map((app) => (
+                      <div key={app.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 bg-sky-50 text-sky-600 rounded-md">
+                              {app.category}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-bold">({app.type})</span>
+                          </div>
+                          <p className="text-xs font-black text-slate-800 mt-1">{app.date} - {app.time}</p>
+                        </div>
+                        <div>
+                          <span className={`px-2.5 py-1 text-[10px] font-black rounded-lg ${
+                            app.status === 'Approved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-yellow-50 text-yellow-600 border border-yellow-100'
+                          }`}>
+                            {app.status === 'Approved' ? 'APPROVED' : 'PENDING'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeSubTab === 'asisten' && (
+              <motion.div
+                key="asisten"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white border border-slate-100 rounded-3xl p-6 flex flex-col h-[480px] justify-between text-left"
+              >
+                {/* Header AI */}
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-sky-400 to-indigo-500 flex items-center justify-center text-sm">🤖</div>
+                    <div>
+                      <h4 className="text-xs font-black text-slate-800 leading-none">Asisten Konseling SahabatAI</h4>
+                      <p className="text-[9px] text-sky-500 font-bold mt-1">ONLINE | Selalu Siap Mendengar</p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] bg-sky-50 text-sky-600 font-black px-2 py-0.5 rounded-md">MOTIVATOR BK</span>
+                </div>
+
+                {/* Messages Box */}
+                <div className="flex-1 overflow-y-auto space-y-3 py-4 pr-1 custom-scrollbar">
+                  {chatMessages.map((msg, i) => {
+                    const isBot = msg.sender === 'assistant';
+                    return (
+                      <div key={i} className={`flex ${isBot ? 'justify-start' : 'justify-end'}`}>
+                        <div className={`p-3.5 max-w-[85%] rounded-2xl text-xs leading-relaxed font-medium ${
+                          isBot ? 'bg-slate-50 text-slate-800 border border-slate-150' : 'bg-sky-500 text-white shadow-md shadow-sky-50'
+                        }`}>
+                          {msg.text}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Chat Inputs */}
+                <div className="border-t border-slate-100 pt-3 flex gap-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
+                    placeholder="Tuliskan keluh kesahmu di sini untuk motivasi..."
+                    className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                  <button
+                    onClick={handleSendChat}
+                    className="p-3 bg-sky-500 hover:bg-sky-600 text-white rounded-xl transition-all cursor-pointer"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {activeSubTab === 'jurnal' && (
+              <motion.div
+                key="jurnal"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="grid grid-cols-1 md:grid-cols-3 gap-6"
+              >
+                {/* Add Journal Form */}
+                <div className="md:col-span-1 bg-white border border-slate-100 rounded-3xl p-5 space-y-4">
+                  <h3 className="font-serif italic text-lg text-slate-900 font-bold">Tulis Jurnal Hari Ini</h3>
+                  <form onSubmit={handleAddJournal} className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Judul Jurnal</label>
+                      <input
+                        type="text"
+                        value={jurnalTitle}
+                        onChange={(e) => setJurnalTitle(e.target.value)}
+                        placeholder="misal: Memaafkan Sahabat..."
+                        required
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Suasana Hati Saat Ini</label>
+                      <select
+                        value={jurnalMood}
+                        onChange={(e) => setJurnalMood(e.target.value)}
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                      >
+                        <option value="Happy">Sangat Bahagia (Happy)</option>
+                        <option value="Calm">Tenang & Santai (Calm)</option>
+                        <option value="Anxious">Gelisah / Cemas (Anxious)</option>
+                        <option value="Sad">Sedih (Sad)</option>
+                        <option value="Angry">Marah / Kecewa (Angry)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Tuliskan Kejadian & Perasaanmu</label>
+                      <textarea
+                        value={jurnalText}
+                        onChange={(e) => setJurnalText(e.target.value)}
+                        placeholder="Hari ini apa yang kamu pelajari? Apa yang membuatmu bersyukur?"
+                        rows={4}
+                        required
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-850 outline-none resize-none leading-relaxed"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2 bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-xs rounded-xl cursor-pointer"
+                    >
+                      Simpan Catatan Jurnal
+                    </button>
+                  </form>
+                </div>
+
+                {/* Journal Archive List */}
+                <div className="md:col-span-2 bg-white border border-slate-100 rounded-3xl p-6 space-y-4">
+                  <h3 className="font-serif italic text-lg text-slate-900 font-bold">Arsip Jurnal Pribadimu 🔒</h3>
+                  <p className="text-[10px] text-slate-400">Jurnal ini sepenuhnya privat di gawaumu untuk melatih kesehatan mental harian.</p>
+                  
+                  <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
+                    {journals.map((j) => (
+                      <div key={j.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-left space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[9px] font-black bg-sky-50 text-sky-600 px-2 py-0.5 rounded-md uppercase">
+                            {j.mood}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-bold">{j.date}</span>
+                        </div>
+                        <h4 className="text-xs font-black text-slate-800 leading-tight">{j.title}</h4>
+                        <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{j.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeSubTab === 'tes' && (
+              <motion.div
+                key="tes"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white border border-slate-100 rounded-3xl p-6 space-y-6"
+              >
+                <div>
+                  <h3 className="font-serif italic text-2xl text-slate-900 font-bold">🧠 Pusat Tes Psikologi & Asesmen BK</h3>
+                  <p className="text-xs text-slate-500 mt-1">Ukur kondisi psikologismu lewat tes mandiri yang divalidasi langsung oleh sistem bimbingan konseling.</p>
+                </div>
+
+                {activeQuiz === null ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {Object.entries(quizzes).map(([key, quiz]) => (
+                      <div key={key} className="p-5 border border-slate-150 rounded-2xl space-y-3 flex flex-col justify-between hover:border-sky-300 hover:shadow-xs transition-all">
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-extrabold text-slate-800">{quiz.title}</h4>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{quiz.questions.length} Pertanyaan Pilihan</p>
+                        </div>
+                        <button
+                          onClick={() => handleStartQuiz(key)}
+                          className="w-full py-2 bg-sky-50 text-sky-600 font-black text-xs rounded-xl hover:bg-sky-100 transition-colors cursor-pointer"
+                        >
+                          Mulai Tes Sekarang
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* Quiz Sheet */
+                  <div className="space-y-6 border border-slate-150 rounded-2xl p-5 sm:p-6 text-left">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                      <h4 className="font-serif italic text-base text-slate-900 font-bold">{quizzes[activeQuiz as keyof typeof quizzes].title}</h4>
+                      <button
+                        onClick={() => setActiveQuiz(null)}
+                        className="text-xs text-slate-400 hover:text-slate-800 cursor-pointer font-bold"
+                      >
+                        Kembali
+                      </button>
+                    </div>
+
+                    {quizResult === null ? (
+                      <div className="space-y-5">
+                        {quizzes[activeQuiz as keyof typeof quizzes].questions.map((q, qIdx) => (
+                          <div key={qIdx} className="space-y-2">
+                            <p className="text-xs font-black text-slate-800">{qIdx + 1}. {q}</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                              {quizzes[activeQuiz as keyof typeof quizzes].options.map((opt, optIdx) => (
+                                <button
+                                  type="button"
+                                  key={optIdx}
+                                  onClick={() => handleAnswerSelect(qIdx, optIdx)}
+                                  className={`p-2.5 rounded-xl text-xs font-semibold text-left border cursor-pointer transition-all ${
+                                    quizAnswers[qIdx] === optIdx 
+                                      ? 'bg-sky-50 border-sky-300 text-sky-700 font-extrabold' 
+                                      : 'bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {opt}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+
+                        <button
+                          onClick={() => handleSubmitQuiz(activeQuiz)}
+                          className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs rounded-xl cursor-pointer"
+                        >
+                          Submit Asesmen & Lihat Hasil
+                        </button>
+                      </div>
+                    ) : (
+                      /* Quiz Result Screen */
+                      <div className="bg-gradient-to-br from-emerald-50 to-sky-50 border border-emerald-100 rounded-2xl p-5 text-center space-y-4">
+                        <span className="text-3xl">📊</span>
+                        <div>
+                          <p className="text-xs font-black text-slate-400 uppercase tracking-widest">HASIL ASESMEN PSIKOLOGI ANDA</p>
+                          <h4 className="text-sm font-extrabold text-slate-800 mt-1">{quizzes[activeQuiz as keyof typeof quizzes].title}</h4>
+                          <p className="text-xs font-bold text-slate-700 bg-white border border-slate-100 rounded-xl p-3 inline-block mt-3 max-w-lg shadow-inner">
+                            {quizResult}
+                          </p>
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-relaxed max-w-md mx-auto">Hasil tes ini telah dienkripsi secara aman dan dikirim ke Dashboard Riska (Guru BK) untuk mempermudah perancangan bimbingan personal Anda.</p>
+                        <button
+                          onClick={() => setActiveQuiz(null)}
+                          className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs rounded-xl cursor-pointer"
+                        >
+                          Selesai Tes
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeSubTab === 'portfolio' && (
+              <motion.div
+                key="portfolio"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="grid grid-cols-1 md:grid-cols-2 gap-6"
+              >
+                {/* Personal Goals Target */}
+                <div className="bg-white border border-slate-100 rounded-3xl p-6 space-y-4">
+                  <h3 className="font-serif italic text-lg text-slate-900 font-bold flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500" /> Peta Cita-Cita & Target BK
+                  </h3>
+                  <p className="text-xs text-slate-500">Tentukan mimpi atau target kecil belajarmu di sekolah.</p>
+                  
+                  {/* Targets list */}
+                  <div className="space-y-2">
+                    {targets.map(t => (
+                      <div key={t.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between">
+                        <span className={`text-xs font-semibold ${t.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>
+                          {t.title}
+                        </span>
+                        <button
+                          onClick={() => setTargets(targets.map(item => item.id === t.id ? { ...item, completed: !item.completed } : item))}
+                          className={`px-2 py-0.5 rounded text-[9px] font-black cursor-pointer ${
+                            t.completed ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          {t.completed ? 'COMPLETED' : 'MARK DONE'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add targets input */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      id="new-target-input"
+                      placeholder="Masukkan target belajarmu..."
+                      className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = (e.target as HTMLInputElement).value.trim();
+                          if (val) {
+                            setTargets([...targets, { id: Math.random().toString(), title: val, completed: false }]);
+                            (e.target as HTMLInputElement).value = '';
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Portfolio / Certificates list */}
+                <div className="bg-white border border-slate-100 rounded-3xl p-6 space-y-4">
+                  <h3 className="font-serif italic text-lg text-slate-900 font-bold flex items-center gap-2">
+                    <Award className="h-5 w-5 text-indigo-500" /> Portofolio & Prestasi Digital
+                  </h3>
+                  <p className="text-xs text-slate-500">Kumpulan kemampuan, sertifikat kompetensi, dan pengalaman organisasimu.</p>
+                  
+                  <div className="space-y-2">
+                    {portfolio.map(p => (
+                      <div key={p.id} className="p-3 bg-slate-50 border border-slate-150 rounded-xl">
+                        <div className="flex justify-between items-center">
+                          <p className="text-xs font-extrabold text-slate-800 leading-tight">{p.title}</p>
+                          <span className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded">
+                            {p.year}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-bold mt-1">Peran: {p.role}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2 text-xs">
+                    <button
+                      onClick={() => {
+                        const title = window.prompt("Nama Prestasi / Sertifikat:");
+                        const role = window.prompt("Peran / Tingkat Lomba:");
+                        const year = window.prompt("Tahun:");
+                        if (title && role && year) {
+                          setPortfolio([...portfolio, { id: Math.random().toString(), title, role, year }]);
+                        }
+                      }}
+                      className="w-full py-2 bg-indigo-50 text-indigo-600 font-black rounded-xl hover:bg-indigo-100 cursor-pointer text-center"
+                    >
+                      + Tambah Prestasi Baru
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeSubTab === 'materi' && (
+              <motion.div
+                key="materi"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white border border-slate-100 rounded-3xl p-6 space-y-6"
+              >
+                <div>
+                  <h3 className="font-serif italic text-2xl text-slate-900 font-bold">📚 Perpustakaan BK Digital</h3>
+                  <p className="text-xs text-slate-500 mt-1">Modul edukasi lengkap, video motivasi, dan PDF seputar kesehatan mental dan perencanaan karir.</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[
+                    { title: "Tips Manajemen Waktu Efektif", type: "PDF Modul", desc: "Cara membagi waktu belajar, istirahat, dan hobi menggunakan metode Eisenhower Matrix.", color: "text-rose-600 bg-rose-50 border-rose-100" },
+                    { title: "Kesehatan Mental Remaja", type: "E-Book", desc: "Mengenali stres diri, mengatasi overthinking, serta membangun ketahanan emosional yang baik.", color: "text-sky-600 bg-sky-50 border-sky-100" },
+                    { title: "Mewujudkan Lingkungan Anti-Bullying", type: "Artikel", desc: "Langkah taktis yang aman untuk melaporkan tindakan bullying di kelas.", color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
+                    { title: "Perencanaan Karir Masa Depan", type: "Video Animasi", desc: "Mengenali passion dan menentukan jurusan kuliah/karir yang cocok sesuai kepribadianmu.", color: "text-amber-600 bg-amber-50 border-amber-100" }
+                  ].map((mat, i) => (
+                    <div key={i} className="p-4 border border-slate-150 rounded-2xl text-left space-y-2 flex flex-col justify-between">
+                      <div className="space-y-1">
+                        <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${mat.color}`}>
+                          {mat.type}
+                        </span>
+                        <h4 className="text-xs font-black text-slate-800 leading-tight mt-1">{mat.title}</h4>
+                        <p className="text-[11px] text-slate-500 leading-relaxed font-normal">{mat.desc}</p>
+                      </div>
+                      <button 
+                        onClick={() => alert(`Sedang mengunduh materi digital "${mat.title}"...`)}
+                        className="w-full mt-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg cursor-pointer"
+                      >
+                        Buka / Unduh File
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {activeSubTab === 'pengaduan' && (
+              <motion.div
+                key="pengaduan"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white border border-slate-100 rounded-3xl p-6 space-y-6 text-left"
+              >
+                <div>
+                  <h3 className="font-serif italic text-2xl text-slate-900 font-bold flex items-center gap-2">
+                    <ShieldAlert className="h-6 w-6 text-rose-500" /> Kotak Aspirasi & Pengaduan Anonim
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Melaporkan kasus perundungan (bullying), pemalakan, kekerasan, atau pelanggaran kenyamanan sekolah lainnya secara 100% rahasia dan aman. Identitas Anda terlindungi sistem enkripsi.
+                  </p>
+                </div>
+
+                <form onSubmit={handleComplaintSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Kategori Pengaduan</label>
+                      <select
+                        value={complaintCategory}
+                        onChange={(e) => setComplaintCategory(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                      >
+                        <option value="Perundungan">Perundungan / Bullying</option>
+                        <option value="Kekerasan Fisik">Tindakan Kekerasan / Berantem</option>
+                        <option value="Pemerasan">Pemalakan Uang / Barang</option>
+                        <option value="Lainnya">Lainnya / Pelanggaran Etika</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Saksi / Korban (Opsional)</label>
+                      <input
+                        type="text"
+                        value={complaintWitness}
+                        onChange={(e) => setComplaintWitness(e.target.value)}
+                        placeholder="Boleh kosong demi keselamatan anda..."
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Kronologi Kejadian Lengkap (Lokasi, Waktu, Pelaku)</label>
+                    <textarea
+                      value={complaintDescription}
+                      onChange={(e) => setComplaintDescription(e.target.value)}
+                      placeholder="Uraikan kejadian sedetail mungkin agar Guru BK bisa mengusut tuntas secara rahasia..."
+                      rows={5}
+                      required
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 outline-none resize-none leading-relaxed"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white font-extrabold text-xs rounded-2xl transition-all cursor-pointer shadow-lg shadow-rose-100 flex items-center justify-center gap-1.5"
+                  >
+                    <ShieldAlert className="h-4 w-4" />
+                    <span>Kirim Pengaduan Terenkripsi</span>
+                  </button>
+                </form>
+              </motion.div>
+            )}
+
+            {activeSubTab === 'relaksasi' && (
+              <motion.div
+                key="relaksasi"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white border border-slate-100 rounded-3xl p-6 space-y-6 text-left"
+              >
+                <div>
+                  <h3 className="font-serif italic text-2xl text-slate-900 font-bold">🍃 Ruang Relaksasi & Kesejahteraan Emosi</h3>
+                  <p className="text-xs text-slate-500 mt-1">Tenangkan pikiran, latih pernapasan, dengarkan instrumen merdu, serta baca doa penyejuk hati.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Interactive breathing box */}
+                  <div className="p-6 border border-slate-150 bg-slate-50 rounded-2xl text-center space-y-6 flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider">Teknik Pernapasan 4-7-8 (Deep Breathing)</h4>
+                      <p className="text-[10px] text-slate-400 mt-1">Mengurangi kecemasan instan dengan menstimulasi saraf parasimpatismu.</p>
+                    </div>
+
+                    <div className="flex justify-center items-center h-40">
+                      <motion.div 
+                        animate={{
+                          scale: isBreathing 
+                            ? (breathingPhase === 'In' ? 1.6 : breathingPhase === 'Hold' ? 1.6 : 1.0)
+                            : 1.0
+                        }}
+                        transition={{ duration: breathingPhase === 'In' ? 4 : breathingPhase === 'Out' ? 8 : 1, ease: "easeInOut" }}
+                        className="h-28 w-28 rounded-full bg-gradient-to-tr from-sky-200 to-indigo-300 flex flex-col items-center justify-center shadow-lg shadow-sky-100"
+                      >
+                        <span className="text-lg font-black text-indigo-700 uppercase">{breathingPhase}</span>
+                        <span className="text-xs font-extrabold text-indigo-500 mt-1">{breathingSeconds}s</span>
+                      </motion.div>
+                    </div>
+
+                    <button
+                      onClick={() => setIsBreathing(!isBreathing)}
+                      className={`w-full py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                        isBreathing ? 'bg-red-500 text-white' : 'bg-sky-500 text-white'
+                      }`}
+                    >
+                      {isBreathing ? "Hentikan Latihan" : "Mulai Bernapas"}
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Audio Player */}
+                    <div className="p-4 border border-slate-150 rounded-2xl text-left space-y-3 bg-slate-50">
+                      <h4 className="text-xs font-black text-slate-700 uppercase">Suara Alam & Musik Meditasi</h4>
+                      <div className="space-y-2">
+                        {[
+                          { title: "Deburan Ombak Pantai Damai", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+                          { title: "Rintik Hujan di Hutan Bambu", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+                          { title: "Dzikir & Doa Ketenangan Jiwa (Piano)", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" }
+                        ].map((sound, idx) => (
+                          <div key={idx} className="p-2 bg-white rounded-xl border border-slate-100 flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-700">{sound.title}</span>
+                            <button
+                              onClick={() => {
+                                setAudioStream(sound);
+                                onTriggerNotification('Relaksasi Musik 🎵', `${studentName} memutar instrumen: ${sound.title}`);
+                              }}
+                              className="p-1.5 bg-sky-50 hover:bg-sky-100 text-sky-600 rounded-lg cursor-pointer"
+                            >
+                              <Play className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      {audioStream && (
+                        <div className="p-3 bg-sky-55 rounded-xl space-y-2 border border-sky-100">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-sky-700 font-extrabold animate-pulse">Sedang Memutar: {audioStream.title}</span>
+                            <button onClick={() => setAudioStream(null)} className="text-[10px] text-red-500 font-black hover:underline cursor-pointer">STOP</button>
+                          </div>
+                          <audio src={audioStream.url} controls autoPlay className="w-full h-8" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Prayers / Dhikr Penyejuk Qalbu */}
+                    <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl text-left space-y-2">
+                      <h4 className="text-xs font-black text-emerald-800 uppercase tracking-wider">Doa & Dzikir Penyejuk Jiwa</h4>
+                      <p className="font-serif text-sm text-slate-800 leading-relaxed italic">
+                        "Allahumma inni a'udzu bika minal hammi wal hazan..." (Ya Allah, aku berlindung kepada-Mu dari rasa cemas dan kesedihan yang mendalam).
+                      </p>
+                      <p className="text-[10px] text-emerald-700 font-semibold leading-relaxed">Bacalah kalimat ini secara perlahan 3 kali sambil mengembuskan napas panjang agar detak jantungmu kembali normal.</p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+}
